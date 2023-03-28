@@ -27,11 +27,10 @@ to quickly create a Cobra application.`,
 
 		if resp, err := http.Get(requestURL); err == nil {
 			if respBody, err := io.ReadAll(resp.Body); err != nil {
-				fmt.Printf("client: could not read response body: %s\n", err)
+				fmt.Printf("client: could not read response body: %s\n. Please try again", err)
 				os.Exit(1)
 			} else {
 				fmt.Printf(string(respBody))
-
 			}
 		}
 	},

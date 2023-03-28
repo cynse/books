@@ -9,7 +9,7 @@ import (
 
 const GoodreadURL = "https://www.goodreads.com/search/index.xml"
 
-func get(request Request) (*string, error) {
+func get(request Request) (*string, int, error) {
 	// Set up URL
 	u, err := url.Parse(GoodreadURL)
 	if err != nil {
@@ -20,13 +20,19 @@ func get(request Request) (*string, error) {
 	q := u.Query()
 	q.Set("q", request.searchString)
 	q.Set("p", string(rune(request.page)))
+
+	// In production, I would read this from environment variables.
 	q.Set("key", "RDfV4oPehM6jNhxfNQzzQ")
 	u.RawQuery = q.Encode()
 
 	// Query the GoodReads API
 	resp, err := http.Get(u.String())
-	respp, _ := io.ReadAll(resp.Body)
-	out := string(respp)
 
-	return &out, nil
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	out := string(body)
+	return &out, 200, nil
 }
