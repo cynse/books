@@ -33,21 +33,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, statusCode, err := get(*req)
-	if err != nil {
+	s, booksErr := get(*req)
+	if booksErr != nil {
 		// If there are "client errors" reading to Goodreads, it is actually a server error on our end.
-		if statusCode >= 400 {
-			statusCode = 500
+		code := booksErr.statusCode
+		if code >= 400 {
+			code = 500
 		}
-		http.Error(w, err.Error(), statusCode)
+		http.Error(w, booksErr.Error(), code)
+		return
 	}
 
 	// Respond to client
-	w.WriteHeader(statusCode)
+	w.WriteHeader(200)
 	w.Write([]byte(*s))
 }
 
-// This function will wrap
+// This function will wrap the request from client and validate query params
 func validateAndWrapRequest(r *http.Request) (*Request, *BooksError) {
 	requestParams := r.URL.Query()
 

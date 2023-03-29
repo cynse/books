@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -9,17 +10,24 @@ import (
 
 const GoodreadURL = "https://www.goodreads.com/search/index.xml"
 
-func get(request Request) (*string, int, error) {
+func get(request Request) (*string, *BooksError) {
 	// Set up URL
 	u, err := url.Parse(GoodreadURL)
 	if err != nil {
-		log.Fatalf("Server Error: Cannot parse URL %s", GoodreadURL)
+		message := fmt.Sprintf("Server Error: Cannot parse URL %s", GoodreadURL)
+		log.Print(message)
+		return nil, &BooksError{
+			statusCode: 500,
+			message:    message,
+		}
 	}
 
-	u.Scheme = "https"
 	q := u.Query()
 	q.Set("q", request.searchString)
-	q.Set("p", string(rune(request.page)))
+
+	if request.page != nil {
+		q.Set("p", fmt.Sprintf("%d", *request.page))
+	}
 
 	// In production, I would read this from environment variables.
 	q.Set("key", "RDfV4oPehM6jNhxfNQzzQ")
@@ -27,12 +35,14 @@ func get(request Request) (*string, int, error) {
 
 	// Query the GoodReads API
 	resp, err := http.Get(u.String())
-
 	if err != nil {
-		return nil, resp.StatusCode, err
+		return nil, &BooksError{
+			statusCode: resp.StatusCode,
+			message:    err.Error(),
+		}
 	}
 
 	body, _ := io.ReadAll(resp.Body)
 	out := string(body)
-	return &out, 200, nil
+	return &out, nil
 }
