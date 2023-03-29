@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/xml"
@@ -10,8 +10,12 @@ import (
 	"sort"
 )
 
-const GoodreadURL = "https://www.goodreads.com/search/index.xml"
+const goodreadsURL = "https://www.goodreads.com/search/index.xml"
+const searchQueryKey = "q"
+const pageSearchKey = "page"
+const apiKeyQuery = "key"
 
+// WorksList represents the way works are structured from Goodreads response
 type WorksList []struct {
 	BestBook struct {
 		Title  string `xml:"title"`
@@ -22,6 +26,7 @@ type WorksList []struct {
 	} `xml:"best_book"`
 }
 
+// GoodreadsResponse represents the XML structure response from Goodreads
 type GoodreadsResponse struct {
 	XMLName xml.Name `xml:"GoodreadsResponse"`
 	Search  struct {
@@ -32,31 +37,25 @@ type GoodreadsResponse struct {
 	} `xml:"search"`
 }
 
-// Book will represent one entry in our list
-type Book struct {
-	Author string
-	Title  string
-	Image  string
-}
-
-func get(request Request) ([]Book, *BooksError) {
+// GetFromGoodreads queries Goodreads using parameters from the request and returns a list of books
+func GetFromGoodreads(request Request) ([]Book, *BooksError) {
 	// Set up URL
-	u, err := url.Parse(GoodreadURL)
+	u, err := url.Parse(goodreadsURL)
 	if err != nil {
-		message := fmt.Sprintf("Server Error: Cannot parse URL %s", GoodreadURL)
+		message := fmt.Sprintf("Server Error: Cannot parse URL %s", goodreadsURL)
 		log.Print(message)
 		return nil, NewBooksError(http.StatusInternalServerError, message)
 	}
 
 	// Set query params
-	q := u.Query()
-	q.Set("q", request.searchString)
+	queryParams := u.Query()
+	queryParams.Set(searchQueryKey, request.searchString)
 	if request.page != nil {
-		q.Set("p", fmt.Sprintf("%d", *request.page))
+		queryParams.Set(pageSearchKey, fmt.Sprintf("%d", *request.page))
 	}
 	// In production, I would read this from environment variables.
-	q.Set("key", "RDfV4oPehM6jNhxfNQzzQ")
-	u.RawQuery = q.Encode()
+	queryParams.Set(apiKeyQuery, "RDfV4oPehM6jNhxfNQzzQ")
+	u.RawQuery = queryParams.Encode()
 
 	// Get from the GoodReads API
 	resp, err := http.Get(u.String())

@@ -38,3 +38,15 @@ The purpose of this exercise is to test your familiarity with Go development. Yo
 ## Bonus Points ##
 
 * Include pagination in the UI.
+
+
+## Chris' instructions ##
+To run server, simply run:
+```shell
+$ make run-server
+```
+
+To run client, run
+```shell
+go run cmd/client/main.go [args]
+```

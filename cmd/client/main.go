@@ -1,6 +1,8 @@
 package main
 
-import "books/cmd/client/CLI"
+import (
+	"books/internal/client/CLI"
+)
 
 func main() {
 	CLI.Execute()
