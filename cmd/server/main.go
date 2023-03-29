@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
 )
 
+// Request is the type that we are sending to our goodreads adapter
 type Request struct {
 	searchString string
 	sortBy       string
@@ -22,6 +24,14 @@ func (b *BooksError) Error() string {
 	return b.message
 }
 
+// NewBooksError is a helper function to create a booksError
+func NewBooksError(statusCode int, message string) *BooksError {
+	return &BooksError{
+		statusCode: statusCode,
+		message:    message,
+	}
+}
+
 // In production, this handler would be registered in a separate file to keep the main file clean. However, since this
 // is such a small application, I've decided to leave it here for simplicity
 //
@@ -33,20 +43,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, booksErr := get(*req)
+	bookList, booksErr := get(*req)
 	if booksErr != nil {
-		// If there are "client errors" reading to Goodreads, it is actually a server error on our end.
-		code := booksErr.statusCode
-		if code >= 400 {
-			code = 500
-		}
-		http.Error(w, booksErr.Error(), code)
+		http.Error(w, booksErr.Error(), booksErr.statusCode)
+		log.Printf("Internal error: %s", booksErr.Error())
+		return
+	}
+
+	s, err := json.Marshal(bookList)
+	if err != nil {
+		http.Error(w, "Error marshalling bookList", http.StatusInternalServerError)
+		log.Printf("Internal error: Error marshalling booklist, %v", err)
 		return
 	}
 
 	// Respond to client
-	w.WriteHeader(200)
-	w.Write([]byte(*s))
+	w.WriteHeader(http.StatusOK)
+	w.Write(s)
 }
 
 // This function will wrap the request from client and validate query params
@@ -56,10 +69,7 @@ func validateAndWrapRequest(r *http.Request) (*Request, *BooksError) {
 	// Validate searchString
 	searchString := requestParams.Get("q")
 	if searchString == "" {
-		return nil, &BooksError{
-			statusCode: 400,
-			message:    "Search string must not be empty! Please try again.",
-		}
+		return nil, NewBooksError(http.StatusBadRequest, "Search string must not be empty! Please try again.")
 	}
 
 	// Validate page number
@@ -67,10 +77,7 @@ func validateAndWrapRequest(r *http.Request) (*Request, *BooksError) {
 	var requestPage *int
 	if page != "" {
 		if intPage, err := strconv.Atoi(page); err != nil {
-			return nil, &BooksError{
-				statusCode: 400,
-				message:    "Page number must be provided as an integer.",
-			}
+			return nil, NewBooksError(http.StatusBadRequest, "Page number must be provided as an integer.")
 		} else {
 			requestPage = new(int)
 			*requestPage = intPage
@@ -78,14 +85,11 @@ func validateAndWrapRequest(r *http.Request) (*Request, *BooksError) {
 	}
 
 	// Validate sortBy
-	sortBy := requestParams.Get("sortby")
+	sortBy := requestParams.Get("s")
 	if sortBy == "" {
 		sortBy = "title"
 	} else if sortBy != "title" && sortBy != "author" {
-		return nil, &BooksError{
-			statusCode: 400,
-			message:    "SortBy must be either 'title' or 'author'",
-		}
+		return nil, NewBooksError(http.StatusBadRequest, "SortBy must be either 'title' or 'author'")
 	}
 
 	return &Request{

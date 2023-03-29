@@ -1,12 +1,15 @@
 package CLI
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 )
@@ -15,6 +18,12 @@ const port = 8080
 const searchQueryKey = "q"
 const sortQueryKey = "s"
 const pageQueryKey = "p"
+
+type Book struct {
+	Author string
+	Title  string
+	Image  string
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -45,19 +54,37 @@ to quickly create a Cobra application.`,
 		u.RawQuery = queryParams.Encode()
 
 		if resp, err := http.Get(u.String()); err == nil {
-			if respBody, err := io.ReadAll(resp.Body); err != nil {
-				log.Printf("client: could not read response body: %s\n. Please try again", err)
-				return
+			if respBody, err := io.ReadAll(resp.Body); err == nil {
+				strings.TrimSuffix(string(respBody), "\n")
+				if resp.StatusCode >= 500 {
+					log.Printf("server error: %s. Please try again later", respBody)
+				} else if resp.StatusCode == 400 {
+					log.Printf("client error: %s. Please check the input and try again.", respBody)
+				} else {
+					displayBooks(respBody)
+				}
 			} else {
-				fmt.Printf(string(respBody))
+				log.Printf("client: error reading response body: %s", err.Error())
 			}
 		} else {
-			if resp.StatusCode >= 500 {
-				log.Printf("Internal server error: Please try again")
-			}
-			return
+			log.Printf("Error: %s", err.Error())
 		}
 	},
+}
+
+// Displays the json results in a readable format for the CLI
+func displayBooks(responseBody []byte) {
+	var books []Book
+	if err := json.Unmarshal(responseBody, &books); err != nil {
+		log.Printf("Unmarshalling error: %s", err.Error())
+		return
+	}
+	w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "%s\t%s\t%s\n", "Author", "Title", "Image Link")
+	for _, book := range books {
+		fmt.Fprintf(w, "%s\t%s\t%s\n", book.Author, book.Title, book.Image)
+	}
+	_ = w.Flush()
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
